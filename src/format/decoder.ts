@@ -67,7 +67,7 @@ export class WeatherDataDecoder {
           break;
       }
     }
-
+    
     return result as WeatherData;
   }
 
