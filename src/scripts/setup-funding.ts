@@ -33,19 +33,40 @@ async function setup(): Promise<void> {
     const currentCount = await getFundingOutputCount();
     console.log(`Current funding outputs: ${currentCount}`);
 
-    // Ask for confirmation
-    const readline = require('readline').createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+    // Get count from command line args or environment variable or prompt
+    let count: number;
 
-    const count = await new Promise<number>((resolve) => {
-      readline.question('How many funding outputs to create? (default: 1000): ', (answer: string) => {
-        readline.close();
-        const num = parseInt(answer, 10);
-        resolve(isNaN(num) ? 1000 : num);
+    // Check command line argument first
+    const argCount = parseInt(process.argv[2], 10);
+    if (!isNaN(argCount) && argCount > 0) {
+      count = argCount;
+      console.log(`Using count from command line: ${count}`);
+    }
+    // Check environment variable
+    else if (process.env.SETUP_OUTPUT_COUNT) {
+      count = parseInt(process.env.SETUP_OUTPUT_COUNT, 10);
+      console.log(`Using count from environment: ${count}`);
+    }
+    // Check if running in non-interactive mode (Docker, CI)
+    else if (!process.stdin.isTTY) {
+      count = 1000; // Default for non-interactive
+      console.log(`Non-interactive mode detected, using default: ${count}`);
+    }
+    // Interactive mode - ask for confirmation
+    else {
+      const readline = require('readline').createInterface({
+        input: process.stdin,
+        output: process.stdout,
       });
-    });
+
+      count = await new Promise<number>((resolve) => {
+        readline.question('How many funding outputs to create? (default: 1000): ', (answer: string) => {
+          readline.close();
+          const num = parseInt(answer, 10);
+          resolve(isNaN(num) || num === 0 ? 1000 : num);
+        });
+      });
+    }
 
     console.log(`Creating ${count} funding outputs...`);
     const txid = await createFundingOutputs(count);
