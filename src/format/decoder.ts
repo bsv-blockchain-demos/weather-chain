@@ -25,21 +25,33 @@ export class WeatherDataDecoder {
    * console.log(data.conditions);
    */
   decode(script: Script): WeatherData {
-    const chunks = script.chunks;
-    let index = 2;
+    let chunks = script.chunks;
+    let index = 0;
+
+    // Handle OP_RETURN encoding: if chunks[1] is OP_RETURN with data,
+    // the data contains the encoded weather data as raw bytes that need to be re-parsed
+    if (chunks.length === 2 && chunks[1] && chunks[1].op === 0x6a && chunks[1].data) {
+      // Re-parse the data after OP_RETURN as a script
+      const dataScript = Script.fromBinary(chunks[1].data);
+      chunks = dataScript.chunks;
+    }
+    // If chunks start with OP_FALSE (0x00) and OP_RETURN (0x6a), skip them
+    else if (chunks.length > 2 && chunks[0] && chunks[0].op === 0x00 && chunks[1] && chunks[1].op === 0x6a) {
+      index = 2; // Skip OP_FALSE and OP_RETURN
+    }
+
+    // Ensure we have enough chunks: version + all fields (from current index)
+    const expectedChunks = 1 + FIELD_SCHEMA.length; // version + 33 fields = 34
+    if (chunks.length - index < expectedChunks) {
+      throw new Error(
+        `Malformed script: expected at least ${expectedChunks} chunks from index ${index}, got ${chunks.length - index}`
+      );
+    }
 
     // Read and validate version
     const version = this.readNumber(chunks[index++]);
     if (version !== VERSION) {
       throw new Error(`Unsupported version: ${version}. Expected: ${VERSION}`);
-    }
-
-    // Ensure we have enough chunks for all fields
-    const expectedChunks = 1 + FIELD_SCHEMA.length; // version + all fields
-    if (chunks.length < expectedChunks) {
-      throw new Error(
-        `Malformed script: expected at least ${expectedChunks} chunks, got ${chunks.length}`
-      );
     }
 
     const result: Partial<WeatherData> = {};

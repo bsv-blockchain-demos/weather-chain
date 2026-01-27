@@ -1,7 +1,7 @@
 import { WeatherDataEncoder } from '../src/format/encoder';
 import { WeatherDataDecoder } from '../src/format/decoder';
 import { minimalWeatherData } from './fixtures/weather-samples';
-import { Script } from '@bsv/sdk';
+import { Script, OP } from '@bsv/sdk';
 import { VERSION } from '../src/format/constants';
 
 describe('Edge Cases', () => {
@@ -202,6 +202,8 @@ describe('Edge Cases', () => {
   describe('malformed scripts', () => {
     it('should throw on script with wrong version', () => {
       const script = new Script();
+      script.writeOpCode(OP.OP_FALSE);
+      script.writeOpCode(OP.OP_RETURN);
       script.writeNumber(999); // Wrong version
       // Add some dummy data
       for (let i = 0; i < 33; i++) {
@@ -213,10 +215,12 @@ describe('Edge Cases', () => {
 
     it('should throw on script with too few chunks', () => {
       const script = new Script();
+      script.writeOpCode(OP.OP_FALSE);
+      script.writeOpCode(OP.OP_RETURN);
       script.writeNumber(VERSION);
       script.writeNumber(1);
       script.writeNumber(2);
-      // Only 3 chunks total, need 34
+      // Only 5 chunks total, need 36
 
       expect(() => decoder.decode(script)).toThrow(/malformed/i);
     });

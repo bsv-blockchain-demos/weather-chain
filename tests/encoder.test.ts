@@ -108,20 +108,20 @@ describe('WeatherDataEncoder', () => {
     it('should encode sample weather data', () => {
       const script = encoder.encode(sampleWeatherData);
       expect(script).toBeDefined();
-      // Version byte + 33 fields = 34 chunks minimum
-      expect(script.chunks.length).toBeGreaterThanOrEqual(34);
+      // OP_FALSE + OP_RETURN + version byte + 33 fields = 36 chunks minimum
+      expect(script.chunks.length).toBeGreaterThanOrEqual(36);
     });
 
     it('should encode minimal weather data', () => {
       const script = encoder.encode(minimalWeatherData);
       expect(script).toBeDefined();
-      expect(script.chunks.length).toBeGreaterThanOrEqual(34);
+      expect(script.chunks.length).toBeGreaterThanOrEqual(36);
     });
 
     it('should encode extreme weather data', () => {
       const script = encoder.encode(extremeWeatherData);
       expect(script).toBeDefined();
-      expect(script.chunks.length).toBeGreaterThanOrEqual(34);
+      expect(script.chunks.length).toBeGreaterThanOrEqual(36);
     });
 
     it('should produce deterministic output', () => {

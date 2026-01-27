@@ -55,7 +55,7 @@ describe('Integration Test - User Provided JSON', () => {
       const script = encoder.encode(userProvidedWeatherData);
 
       expect(script).toBeDefined();
-      expect(script.chunks.length).toBeGreaterThanOrEqual(34); // version + 33 fields
+      expect(script.chunks.length).toBeGreaterThanOrEqual(36); // OP_FALSE + OP_RETURN + version + 33 fields
       expect(script.toHex()).toBeDefined();
       expect(script.toBinary()).toBeDefined();
     });

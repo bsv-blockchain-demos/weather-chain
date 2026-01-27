@@ -1,7 +1,7 @@
 import { WeatherDataDecoder } from '../src/format/decoder';
 import { WeatherDataEncoder } from '../src/format/encoder';
 import { sampleWeatherData, minimalWeatherData, extremeWeatherData } from './fixtures/weather-samples';
-import { Script } from '@bsv/sdk';
+import { Script, OP } from '@bsv/sdk';
 import { VERSION } from '../src/format/constants';
 
 describe('WeatherDataDecoder', () => {
@@ -146,7 +146,13 @@ describe('WeatherDataDecoder', () => {
     it('should throw error for unsupported version', () => {
       // Create a script with wrong version
       const script = new Script();
+      script.writeOpCode(OP.OP_FALSE);
+      script.writeOpCode(OP.OP_RETURN);
       script.writeNumber(999); // Invalid version
+      // Add dummy data to pass chunk count check
+      for (let i = 0; i < 33; i++) {
+        script.writeNumber(0);
+      }
       expect(() => decoder.decode(script)).toThrow(/version/i);
     });
   });
@@ -170,9 +176,11 @@ describe('WeatherDataDecoder', () => {
   describe('error handling', () => {
     it('should throw on malformed script (too few chunks)', () => {
       const script = new Script();
+      script.writeOpCode(OP.OP_FALSE);
+      script.writeOpCode(OP.OP_RETURN);
       script.writeNumber(VERSION);
       script.writeNumber(1); // Only 1 field instead of 33
-      expect(() => decoder.decode(script)).toThrow();
+      expect(() => decoder.decode(script)).toThrow(/malformed/i);
     });
   });
 });
