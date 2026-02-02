@@ -32,6 +32,10 @@ export const config = {
   // Service Configuration
   MONITOR_INTERVAL: parseInt(process.env.MONITOR_INTERVAL ?? '60', 10), // seconds
   PROCESSOR_INTERVAL: parseInt(process.env.PROCESSOR_INTERVAL ?? '3', 10), // seconds
+
+  // API Configuration
+  API_PORT: parseInt(process.env.API_PORT ?? '3001', 10),
+  CORS_ORIGIN: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
 };
 
 /**

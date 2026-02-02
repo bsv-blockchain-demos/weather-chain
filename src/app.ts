@@ -1,3 +1,4 @@
+import { Server } from 'http';
 import { connectMongo, disconnectMongo } from './db/connection';
 import { getWallet } from './service/wallet';
 import { ensureFundingOutputs } from './service/setup';
@@ -6,6 +7,7 @@ import { startPollingLoop, stopPollingLoop, getQueueStats } from './service/queu
 import { startProcessorLoop, stopProcessorLoop } from './service/processor';
 import { ConsoleNotification } from './notification/console';
 import { config, validateConfig } from './config/env';
+import { startApiServer } from './api';
 
 /**
  * Application state
@@ -14,6 +16,7 @@ interface AppState {
   monitorTimer?: NodeJS.Timeout;
   pollingTimer?: NodeJS.Timeout;
   processorTimer?: NodeJS.Timeout;
+  apiServer?: Server;
   isShuttingDown: boolean;
 }
 
@@ -48,6 +51,10 @@ async function initialize(): Promise<void> {
   console.log('Checking funding basket...');
   await ensureFundingOutputs();
   console.log('✓ Funding basket ready');
+
+  // Start API server
+  console.log('Starting API server...');
+  state.apiServer = await startApiServer();
 
   console.log('='.repeat(60));
 }
@@ -114,6 +121,16 @@ async function shutdown(): Promise<void> {
 
   if (state.processorTimer) {
     stopProcessorLoop(state.processorTimer);
+  }
+
+  // Close API server
+  if (state.apiServer) {
+    await new Promise<void>((resolve) => {
+      state.apiServer!.close(() => {
+        console.log('✓ API server closed');
+        resolve();
+      });
+    });
   }
 
   // Disconnect from MongoDB
