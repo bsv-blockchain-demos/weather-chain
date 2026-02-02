@@ -31,6 +31,9 @@ export async function createFundingOutputs(count: number = config.FUNDING_BATCH_
     const result = await wallet.createAction({
       description: 'Create funding outputs',
       outputs,
+      options: {
+        acceptDelayedBroadcast: false
+      }
     });
 
     const txid = result.txid ?? '';

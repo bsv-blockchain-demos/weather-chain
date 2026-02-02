@@ -73,6 +73,9 @@ export async function createWeatherTransaction(records: IWeatherRecord[]): Promi
         },
       ],
       outputs: weatherOutputs,
+      options: {
+        acceptDelayedBroadcast: false
+      }
     });
 
     // Output indexes are sequential starting from 0
