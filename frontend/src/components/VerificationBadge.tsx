@@ -7,6 +7,7 @@ interface VerificationBadgeProps {
   isVerifying?: boolean;
   onVerify?: () => void;
   compact?: boolean;
+  isConfirmed?: boolean;
 }
 
 export function VerificationBadge({
@@ -15,6 +16,7 @@ export function VerificationBadge({
   isVerifying,
   onVerify,
   compact = false,
+  isConfirmed = true,
 }: VerificationBadgeProps) {
   // Show status badge for non-completed records
   if (status !== 'completed') {
@@ -79,6 +81,14 @@ export function VerificationBadge({
         </svg>
         Verify
       </button>
+    );
+  }
+
+  if (!isConfirmed) {
+    return (
+      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+        Pending Confirmation
+      </span>
     );
   }
 

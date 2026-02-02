@@ -69,7 +69,7 @@ export function WeatherDetail() {
   const network = getNetwork();
 
   const txid = record?.blockchain.txid ?? null;
-  const { verify, verificationResult, isVerifying } = useVerification(txid);
+  const { verify, verificationResult, isVerifying, isConfirmed, isCheckingConfirmation } = useVerification(txid);
 
   if (isLoading) {
     return (
@@ -118,8 +118,9 @@ export function WeatherDetail() {
             <VerificationBadge
               status={record.status}
               verificationResult={verificationResult}
-              isVerifying={isVerifying}
-              onVerify={record.status === 'completed' ? verify : undefined}
+              isVerifying={isVerifying || isCheckingConfirmation}
+              onVerify={record.status === 'completed' && isConfirmed ? verify : undefined}
+              isConfirmed={isConfirmed ?? true}
             />
           </div>
         </div>
@@ -147,15 +148,20 @@ export function WeatherDetail() {
               <dt className="text-sm text-gray-500">Output Index</dt>
               <dd className="font-mono text-sm">{record.blockchain.outputIndex}</dd>
             </div>
-            {verificationResult?.blockHeight && (
+            {verificationResult?.blockHeight ? (
               <div>
                 <dt className="text-sm text-gray-500">Block Height</dt>
                 <dd className="font-mono text-sm">{verificationResult.blockHeight}</dd>
               </div>
+            ) : (
+              <div>
+                <dt className="text-sm text-gray-500">Block Height</dt>
+                <dd className="font-mono text-sm">Not confirmed yet</dd>
+              </div>
             )}
           </dl>
 
-          {record.status === 'completed' && !verificationResult && (
+          {record.status === 'completed' && isConfirmed && !verificationResult && (
             <button
               onClick={verify}
               disabled={isVerifying}

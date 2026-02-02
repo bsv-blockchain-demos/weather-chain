@@ -19,6 +19,18 @@ export function getNetwork(): 'main' | 'test' {
 }
 
 /**
+ * Check if a BEEF has a merkle path (transaction is confirmed on-chain)
+ */
+export function checkBeefConfirmation(beefHex: string): boolean {
+  try {
+    const tx = Transaction.fromHexBEEF(beefHex);
+    return !!tx.merklePath;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Verify a weather proof using the BEEF format
  * Uses tx.verify() with WhatsOnChain as the chain tracker
  */
