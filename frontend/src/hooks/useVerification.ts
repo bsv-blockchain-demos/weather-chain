@@ -1,72 +1,47 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchBeefProof } from '../services/api';
-import { verifyWeatherProof, checkBeefConfirmation, VerificationResult } from '../services/verify';
+import { useQueryClient } from '@tanstack/react-query';
+import { fetchVerification } from '../services/api';
+import type { VerificationResult } from '../services/verify';
+import type { WeatherRecord } from '../types/weather';
 
 /**
- * Hook for client-side blockchain verification
+ * Hook for blockchain verification of a weather transaction.
+ *
+ * On confirmation:
+ * - blockHeight is persisted to the DB by the backend (inside a MongoDB
+ *   transaction, so concurrent verify calls are safe).
+ * - The detail record in React Query cache is patched immediately so the UI
+ *   updates without waiting for a round-trip refetch.
+ * - All weather list queries are invalidated so the station records page shows
+ *   the updated blockHeight on its next mount/visit.
  */
-export function useVerification(txid: string | null) {
+export function useVerification(txid: string | null, recordId: string | undefined) {
+  const queryClient = useQueryClient();
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState<boolean | null>(null);
   const [isCheckingConfirmation, setIsCheckingConfirmation] = useState(false);
 
-  // Fetch BEEF proof (only when txid is available)
-  const {
-    data: beefData,
-    isLoading: isLoadingBeef,
-    error: beefError,
-    refetch: refetchBeef,
-  } = useQuery({
-    queryKey: ['proof', txid],
-    queryFn: () => fetchBeefProof(txid!),
-    enabled: false, // Don't auto-fetch, triggered by verify() or checkConfirmation()
-  });
-
-  // Verify the proof
-  const verify = useCallback(async () => {
-    if (!txid) {
-      setVerificationResult({
-        verified: false,
-        txid: '',
-        error: 'No transaction ID available',
-      });
-      return;
-    }
-
-    setIsVerifying(true);
-    setVerificationResult(null);
-
-    try {
-      // Fetch BEEF proof
-      const { data } = await refetchBeef();
-
-      if (!data) {
-        setVerificationResult({
-          verified: false,
-          txid,
-          error: 'Failed to fetch BEEF proof',
-        });
-        return;
+  // Patch the detail cache and stale-mark all weather lists so the station
+  // records page gets fresh data on its next visit.
+  const applyBlockHeightToCache = useCallback(
+    (blockHeight: number) => {
+      if (recordId) {
+        queryClient.setQueryData<WeatherRecord>(
+          ['weather', 'detail', recordId],
+          (old) => {
+            if (!old) return old;
+            return { ...old, blockchain: { ...old.blockchain, blockHeight } };
+          }
+        );
       }
+      // Mark every weather list stale — next visit to StationRecords refetches
+      queryClient.invalidateQueries({ queryKey: ['weather', 'list'] });
+    },
+    [recordId, queryClient]
+  );
 
-      // Verify using @bsv/sdk
-      const result = await verifyWeatherProof(data.beef);
-      setVerificationResult(result);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Verification failed';
-      setVerificationResult({
-        verified: false,
-        txid,
-        error: message,
-      });
-    } finally {
-      setIsVerifying(false);
-    }
-  }, [txid, refetchBeef]);
-
-  // Check if transaction is confirmed (has merklePath) without full verification
+  // Lightweight confirmation check: just sets isConfirmed, no verificationResult
   const checkConfirmation = useCallback(async () => {
     if (!txid) {
       setIsConfirmed(false);
@@ -76,30 +51,57 @@ export function useVerification(txid: string | null) {
     setIsCheckingConfirmation(true);
 
     try {
-      const { data } = await refetchBeef();
-
-      if (!data) {
-        setIsConfirmed(false);
-        return;
-      }
-
-      const confirmed = checkBeefConfirmation(data.beef);
+      const results = await fetchVerification([txid]);
+      const { confirmed, blockHeight } = results[txid] ?? { confirmed: false, blockHeight: null };
       setIsConfirmed(confirmed);
+      if (confirmed && blockHeight) {
+        applyBlockHeightToCache(blockHeight);
+      }
     } catch {
       setIsConfirmed(false);
     } finally {
       setIsCheckingConfirmation(false);
     }
-  }, [txid, refetchBeef]);
+  }, [txid, applyBlockHeightToCache]);
 
-  // Auto-check confirmation status when txid is available
+  // Full verify: same request, but surfaces the result in verificationResult
+  const verify = useCallback(async () => {
+    if (!txid) {
+      setVerificationResult({ verified: false, txid: '', error: 'No transaction ID available' });
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerificationResult(null);
+
+    try {
+      const results = await fetchVerification([txid]);
+      const { confirmed, blockHeight } = results[txid] ?? { confirmed: false, blockHeight: null };
+      setVerificationResult({
+        verified: confirmed,
+        txid,
+        blockHeight: blockHeight ?? undefined,
+        error: confirmed ? undefined : 'Transaction not yet confirmed on chain',
+      });
+      setIsConfirmed(confirmed);
+      if (confirmed && blockHeight) {
+        applyBlockHeightToCache(blockHeight);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Verification failed';
+      setVerificationResult({ verified: false, txid, error: message });
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [txid, applyBlockHeightToCache]);
+
+  // Auto-check on mount whenever a txid becomes available
   useEffect(() => {
     if (txid && isConfirmed === null) {
       checkConfirmation();
     }
   }, [txid, isConfirmed, checkConfirmation]);
 
-  // Reset verification state
   const reset = useCallback(() => {
     setVerificationResult(null);
     setIsVerifying(false);
@@ -110,11 +112,9 @@ export function useVerification(txid: string | null) {
     verify,
     reset,
     checkConfirmation,
-    isVerifying: isVerifying || isLoadingBeef,
+    isVerifying,
     isCheckingConfirmation,
     isConfirmed,
     verificationResult,
-    beefData,
-    beefError,
   };
 }

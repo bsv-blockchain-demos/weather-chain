@@ -3,6 +3,9 @@ import cors from 'cors';
 import { config } from '../config/env';
 import weatherRoutes from './routes/weather';
 import proofRoutes from './routes/proof';
+import verifyRoutes from './routes/verify';
+import stationsRoutes from './routes/stations';
+import eventsRoutes from './routes/events';
 
 /**
  * Create and configure the Express application
@@ -25,6 +28,9 @@ export function createApp(): Application {
   // Mount routes
   app.use('/api/weather', weatherRoutes);
   app.use('/api/proof', proofRoutes);
+  app.use('/api/verify', verifyRoutes);
+  app.use('/api/stations', stationsRoutes);
+  app.use('/api/events', eventsRoutes);
 
   // Error handling middleware
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

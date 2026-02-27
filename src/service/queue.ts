@@ -1,7 +1,19 @@
 import { getStations, getCurrentConditions } from './tempest';
 import { WeatherRecord } from '../db/models/weather-record';
+import { Station } from '../db/models/station';
 import { config } from '../config/env';
 import { NotificationService } from '../notification/interface';
+
+/**
+ * Format lat/lng into a human-readable coordinate string,
+ * e.g. "37.77°N, 122.42°W". Returns '' if either value is null.
+ */
+function formatCoordinates(lat: number | null, lng: number | null): string {
+  if (lat === null || lng === null) return '';
+  const latDir = lat >= 0 ? 'N' : 'S';
+  const lngDir = lng >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(2)}°${latDir}, ${Math.abs(lng).toFixed(2)}°${lngDir}`;
+}
 
 /**
  * Poll weather data from Tempest API and store in queue
@@ -17,7 +29,46 @@ export async function pollWeatherData(notification: NotificationService): Promis
     const stations = await getStations();
     console.log(`Polling ${stations.length} stations...`);
 
-    for (const stationId of stations) {
+    // Seed / refresh Station metadata from the Tempest API.
+    // - name and coordinates are always updated (idempotent, no harm in refreshing).
+    // - location is only written when still empty so manual edits are preserved.
+    if (stations.length > 0) {
+      const stationOps = stations.flatMap(({ stationId, name, latitude, longitude }) => {
+        const location = formatCoordinates(latitude, longitude);
+        return [
+          {
+            updateOne: {
+              filter: { stationId },
+              update: {
+                $set: {
+                  name,
+                  // Omit coords from $set if the API didn't return them —
+                  // Mongoose UpdateFilter types don't accept null here.
+                  ...(latitude !== null ? { latitude } : {}),
+                  ...(longitude !== null ? { longitude } : {}),
+                },
+              },
+              upsert: true,
+            },
+          },
+          // Second op: only fill location if it is still empty
+          ...(location
+            ? [
+                {
+                  updateOne: {
+                    filter: { stationId, location: '' },
+                    update: { $set: { location } },
+                  },
+                },
+              ]
+            : []),
+        ];
+      });
+
+      await Station.bulkWrite(stationOps, { ordered: false });
+    }
+
+    for (const { stationId } of stations) {
       try {
         const data = await getCurrentConditions(stationId);
 
