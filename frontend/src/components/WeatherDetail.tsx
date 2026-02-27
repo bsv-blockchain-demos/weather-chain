@@ -69,7 +69,7 @@ export function WeatherDetail() {
   const network = getNetwork();
 
   const txid = record?.blockchain.txid ?? null;
-  const { verify, verificationResult, isVerifying, isConfirmed, isCheckingConfirmation } = useVerification(txid);
+  const { verify, verificationResult, isVerifying, isConfirmed, isCheckingConfirmation } = useVerification(txid, id);
 
   if (isLoading) {
     return (

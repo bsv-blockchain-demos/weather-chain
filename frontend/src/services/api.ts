@@ -82,6 +82,32 @@ export async function fetchDashboard(params: {
   return response.json();
 }
 
+export interface VerifyResult {
+  confirmed: boolean;
+  blockHeight: number | null;
+}
+
+/**
+ * Batch-verify one or more txids in a single backend round-trip.
+ * The backend fans out WoC queries concurrently and persists blockHeights.
+ * Returns a Record<txid, VerifyResult> for O(1) lookup.
+ */
+export async function fetchVerification(
+  txids: string[]
+): Promise<Record<string, VerifyResult>> {
+  const response = await fetch(`${API_BASE}/api/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ txids }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to verify transactions: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 /**
  * Fetch a single station's metadata and summary
  */

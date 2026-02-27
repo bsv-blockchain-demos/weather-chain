@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStation, useStationRecords } from '../hooks/useWeather';
+import { useAutoVerify } from '../hooks/useAutoVerify';
 import { fetchWeatherRecords, fetchWeatherRecord } from '../services/api';
 import type { WeatherRecord, RecordStatus } from '../types/weather';
 
@@ -110,6 +111,10 @@ export function StationRecords() {
 
   const records = recordsData?.items ?? [];
   const pagination = recordsData?.pagination;
+
+  // Auto-verify every completed record that doesn't yet have a blockHeight.
+  // Groups by unique txid so one batch of 100 records = 1 WoC query.
+  useAutoVerify(records.length > 0 ? records : undefined);
 
   // Prefetch next page as soon as the current page loads
   useEffect(() => {

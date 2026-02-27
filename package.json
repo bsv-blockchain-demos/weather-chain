@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/app.js",
+    "start": "tsc && node dist/app.js",
     "dev": "ts-node src/app.ts",
     "setup": "ts-node src/scripts/setup-funding.ts",
     "test": "jest",

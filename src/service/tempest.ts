@@ -7,6 +7,8 @@ import { WeatherData } from '../format/types';
 interface TempestStation {
   station_id: number;
   name?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 /**
@@ -14,6 +16,17 @@ interface TempestStation {
  */
 interface StationsResponse {
   stations: TempestStation[];
+}
+
+/**
+ * Station info returned by getStations(), enriched with metadata from the
+ * Tempest API response so callers can seed the Station collection.
+ */
+export interface StationInfo {
+  stationId: number;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 /**
@@ -28,7 +41,7 @@ interface CurrentConditionsResponse {
  *
  * @returns {Promise<number[]>} Array of station IDs
  */
-export async function getStations(): Promise<number[]> {
+export async function getStations(): Promise<StationInfo[]> {
   const url = `https://swd.weatherflow.com/swd/rest/stations?token=${config.TEMPEST_API_KEY}`;
 
   try {
@@ -44,7 +57,12 @@ export async function getStations(): Promise<number[]> {
       throw new Error('Invalid response format from Tempest API');
     }
 
-    return data.stations.map((s) => s.station_id);
+    return data.stations.map((s) => ({
+      stationId: s.station_id,
+      name: s.name ?? '',
+      latitude: s.latitude ?? null,
+      longitude: s.longitude ?? null,
+    }));
   } catch (error) {
     console.error('Failed to fetch stations from Tempest API:', error);
     throw error;

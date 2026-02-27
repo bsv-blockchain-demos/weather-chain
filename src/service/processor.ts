@@ -3,8 +3,59 @@ import { Station } from '../db/models/station';
 import { incrementGlobalStats } from '../db/models/global-stats';
 import { broadcastStats } from './sse';
 import { createWeatherTransaction } from './transaction';
+import {
+  getCachedFundingCount,
+  getFundingOutputCount,
+  createFundingOutputs,
+  decrementCachedFundingCount,
+} from './setup';
 import { config } from '../config/env';
 import { NotificationService } from '../notification/interface';
+
+/**
+ * Pre-flight funding check.
+ *
+ * Reads the in-memory cache first (free). If the cache says 0, we verify
+ * with a real wallet call before deciding to refill, to guard against any
+ * counter drift. If genuinely empty, we trigger an immediate refill and
+ * return false so the caller can skip this tick without touching any records.
+ *
+ * Returns true  → funding is available, proceed normally.
+ * Returns false → funding was empty (refill triggered); skip this tick.
+ */
+async function checkAndRefillFunding(notification: NotificationService): Promise<boolean> {
+  const cached = getCachedFundingCount();
+
+  // null = cache not yet initialised (startup race) — let the batch proceed;
+  // the wallet will throw if funding truly isn't there.
+  if (cached === null || cached > 0) {
+    return true;
+  }
+
+  // Cache says 0 — verify with a real wallet call before refilling.
+  const real = await getFundingOutputCount();
+
+  if (real > 0) {
+    // Counter drifted; cache is now corrected by getFundingOutputCount.
+    return true;
+  }
+
+  // Genuinely empty — refill immediately instead of waiting for the monitor.
+  console.log('Funding basket empty — triggering immediate refill...');
+  try {
+    await createFundingOutputs(config.FUNDING_BATCH_SIZE);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    if (msg.includes('INSUFFICIENT_FUNDS')) {
+      await notification.sendError('CRITICAL: Insufficient funds in wallet');
+    } else {
+      await notification.sendError(`CRITICAL: Failed to refill funding outputs — ${msg}`);
+    }
+  }
+
+  // Skip this tick regardless — the next tick will have fresh outputs.
+  return false;
+}
 
 /**
  * Process pending records from the queue.
@@ -15,6 +66,12 @@ import { NotificationService } from '../notification/interface';
  */
 export async function processPendingRecords(notification: NotificationService): Promise<number> {
   try {
+    // Pre-flight: bail out early if the funding basket is empty so we never
+    // mark records as 'processing' only to roll them back a moment later.
+    if (!(await checkAndRefillFunding(notification))) {
+      return 0;
+    }
+
     // Get pending records in batches
     const records = await WeatherRecord.find({ status: 'pending' })
       .sort({ createdAt: 1 })
@@ -41,6 +98,9 @@ export async function processPendingRecords(notification: NotificationService): 
     try {
       // Create transaction with weather outputs
       const { txid, outputIndexes } = await createWeatherTransaction(records);
+
+      // One funding output was consumed — keep the cache in sync.
+      decrementCachedFundingCount();
 
       const processedAt = new Date();
 
@@ -117,9 +177,7 @@ export async function processPendingRecords(notification: NotificationService): 
 
       console.error('Failed to process records:', errorMsg);
 
-      if (errorMsg.includes('No funding outputs available')) {
-        await notification.sendError('CRITICAL: No funding outputs available for processing');
-      } else if (errorMsg.includes('insufficient')) {
+      if (errorMsg.includes('insufficient')) {
         await notification.sendError('CRITICAL: Insufficient funds in wallet');
       }
 
