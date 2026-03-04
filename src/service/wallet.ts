@@ -7,6 +7,28 @@ const BSV_NETWORK = (process.env.BSV_NETWORK?.length ?? 0) > 0 ? (process.env.BS
 
 let walletInstance: WalletInterface | null = null
 
+/**
+ * Queue for weather transactions.
+ */
+let weatherTxQueue: Promise<unknown> = Promise.resolve();
+
+export function queueWeatherTx<T>(fn: () => Promise<T>): Promise<T> {
+  const result = weatherTxQueue.then(fn);
+  weatherTxQueue = result.then(() => {}, () => {});
+  return result;
+}
+
+/**
+ * Queue for funding output creation.
+ */
+let fundingQueue: Promise<unknown> = Promise.resolve();
+
+export function queueFundingAction<T>(fn: () => Promise<T>): Promise<T> {
+  const result = fundingQueue.then(fn);
+  fundingQueue = result.then(() => {}, () => {});
+  return result;
+}
+
 export async function getWallet (): Promise<WalletInterface> {
   if (walletInstance == null) {
     const chain = BSV_NETWORK !== 'test' ? 'main' : 'test'

@@ -1,6 +1,9 @@
 import { config } from '../config/env';
 import { WeatherData } from '../format/types';
 
+const FETCH_TIMEOUT_MS = 15_000;
+const STATIONS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 /**
  * Tempest API station interface
  */
@@ -36,16 +39,24 @@ interface CurrentConditionsResponse {
   current_conditions: any;
 }
 
+let stationsCache: { data: StationInfo[]; fetchedAt: number } | null = null;
+
 /**
- * Get list of station IDs from Tempest API
+ * Get list of station IDs from Tempest API.
+ * Results are cached for 1 hour to avoid burning API calls on every poll tick.
  *
- * @returns {Promise<number[]>} Array of station IDs
+ * @returns {Promise<StationInfo[]>} Array of station info
  */
 export async function getStations(): Promise<StationInfo[]> {
+  const now = Date.now();
+  if (stationsCache && now - stationsCache.fetchedAt < STATIONS_CACHE_TTL_MS) {
+    return stationsCache.data;
+  }
+
   const url = `https://swd.weatherflow.com/swd/rest/stations?token=${config.TEMPEST_API_KEY}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 
     if (!response.ok) {
       throw new Error(`Tempest API error: ${response.status} ${response.statusText}`);
@@ -57,12 +68,15 @@ export async function getStations(): Promise<StationInfo[]> {
       throw new Error('Invalid response format from Tempest API');
     }
 
-    return data.stations.map((s) => ({
+    const stations = data.stations.map((s) => ({
       stationId: s.station_id,
       name: s.name ?? '',
       latitude: s.latitude ?? null,
       longitude: s.longitude ?? null,
     }));
+
+    stationsCache = { data: stations, fetchedAt: now };
+    return stations;
   } catch (error) {
     console.error('Failed to fetch stations from Tempest API:', error);
     throw error;
@@ -79,7 +93,7 @@ export async function getCurrentConditions(stationId: number): Promise<WeatherDa
   const url = `https://swd.weatherflow.com/swd/rest/better_forecast?station_id=${stationId}&token=${config.TEMPEST_API_KEY}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 
     if (!response.ok) {
       throw new Error(`Tempest API error: ${response.status} ${response.statusText}`);

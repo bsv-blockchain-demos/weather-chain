@@ -36,7 +36,7 @@ export function useWeatherRecord(id: string | undefined) {
 /**
  * Hook for the dashboard: global stats + paginated station list.
  * keepPreviousData means the station table stays visible during page/search changes.
- * refetchInterval keeps live stats ticking every 30s.
+ * Live stat updates come via the SSE stream (useLiveStats).
  */
 export function useDashboard(params: {
   page?: number;
@@ -47,7 +47,6 @@ export function useDashboard(params: {
     queryKey: ['dashboard', params],
     queryFn: () => fetchDashboard(params),
     placeholderData: keepPreviousData,
-    refetchInterval: 30_000,
   });
 }
 
