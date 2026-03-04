@@ -1,4 +1,4 @@
-import { getWallet } from './wallet';
+import { getWallet, queueWeatherTx } from './wallet';
 import { WeatherDataEncoder } from '../format/encoder';
 import { createUnlockingScript } from '../scripts/hash-puzzle';
 import { IWeatherRecord } from '../db/models/weather-record';
@@ -31,25 +31,6 @@ export async function createWeatherTransaction(records: IWeatherRecord[]): Promi
   const wallet = await getWallet();
   const encoder = new WeatherDataEncoder();
 
-  // Get one funding input
-  const { outputs: fundingOutputs, BEEF } = await wallet.listOutputs({
-    basket: 'funding',
-    include: 'entire transactions',
-    limit: 1,
-    includeCustomInstructions: true,
-  });
-
-  if (fundingOutputs.length === 0) {
-    throw new Error('No funding outputs available');
-  }
-
-  const fundingOutput = fundingOutputs[0];
-  const preimage = fundingOutput.customInstructions;
-
-  if (!preimage) {
-    throw new Error('Funding output missing preimage in customInstructions');
-  }
-
   // Create weather data outputs
   const weatherOutputs = records.map((record) => {
     const script = encoder.encode(record.data);
@@ -61,21 +42,41 @@ export async function createWeatherTransaction(records: IWeatherRecord[]): Promi
   });
 
   try {
-    // Create transaction
-    const result = await wallet.createAction({
-      description: `Weather data storage (${records.length} outputs)`,
-      inputBEEF: BEEF,
-      inputs: [
-        {
-          outpoint: fundingOutput.outpoint,
-          unlockingScript: createUnlockingScript(preimage),
-          inputDescription: 'funding input',
-        },
-      ],
-      outputs: weatherOutputs,
-      options: {
-        acceptDelayedBroadcast: false
+    // listOutputs + createAction must be inside the same queue slot
+    const result = await queueWeatherTx(async () => {
+      const { outputs: fundingOutputs, BEEF } = await wallet.listOutputs({
+        basket: 'funding',
+        include: 'entire transactions',
+        limit: 1,
+        includeCustomInstructions: true,
+      });
+
+      if (fundingOutputs.length === 0) {
+        throw new Error('No funding outputs available');
       }
+
+      const fundingOutput = fundingOutputs[0];
+      const preimage = fundingOutput.customInstructions;
+
+      if (!preimage) {
+        throw new Error('Funding output missing preimage in customInstructions');
+      }
+
+      return wallet.createAction({
+        description: `Weather data storage (${records.length} outputs)`,
+        inputBEEF: BEEF,
+        inputs: [
+          {
+            outpoint: fundingOutput.outpoint,
+            unlockingScript: createUnlockingScript(preimage),
+            inputDescription: 'funding input',
+          },
+        ],
+        outputs: weatherOutputs,
+        options: {
+          acceptDelayedBroadcast: false,
+        },
+      });
     });
 
     // Output indexes are sequential starting from 0

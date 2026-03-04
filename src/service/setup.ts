@@ -1,4 +1,5 @@
-import { getWallet } from './wallet';
+import { CreateActionOutput } from '@bsv/sdk';
+import { getWallet, queueFundingAction } from './wallet';
 import { createHashPuzzle } from '../scripts/hash-puzzle';
 import { config } from '../config/env';
 
@@ -63,7 +64,7 @@ export async function createFundingOutputs(count: number = config.FUNDING_BATCH_
 
   console.log(`Creating ${count} funding outputs...`);
 
-  const outputs = [];
+  const outputs: CreateActionOutput[] = [];
   for (let i = 0; i < count; i++) {
     const { lockingScript, preimage } = createHashPuzzle();
 
@@ -77,13 +78,13 @@ export async function createFundingOutputs(count: number = config.FUNDING_BATCH_
   }
 
   try {
-    const result = await wallet.createAction({
+    const result = await queueFundingAction(() => wallet.createAction({
       description: 'Create funding outputs',
       outputs,
       options: {
         acceptDelayedBroadcast: false,
       },
-    });
+    }));
 
     const txid = result.txid ?? '';
     console.log(`Successfully created ${count} funding outputs in transaction: ${txid}`);
