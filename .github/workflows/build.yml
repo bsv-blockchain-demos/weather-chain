@@ -57,8 +57,8 @@ jobs:
           file: ./frontend/Dockerfile # Path to Dockerfile
           push: ${{ github.event_name != 'pull_request' }} # Only push on push events, not PRs
           tags: |
-            ghcr.io/bsv-blockchain-demos/weather-chain-front:${{ github.sha }}
-            ghcr.io/bsv-blockchain-demos/weather-chain-front:${{ needs.get_tag.outputs.deployment_tag }}
+            ghcr.io/bsv-blockchain-demos/weather-proof-front:${{ github.sha }}
+            ghcr.io/bsv-blockchain-demos/weather-proof-front:${{ needs.get_tag.outputs.deployment_tag }}
           build-args: |
             VITE_API_BASE=${{ vars.VITE_API_BASE }}
 
@@ -70,5 +70,5 @@ jobs:
           file: ./Dockerfile # Path to Dockerfile
           push: ${{ github.event_name != 'pull_request' }} # Only push on push events, not PRs
           tags: |
-            ghcr.io/bsv-blockchain-demos/weather-chain-back:${{ github.sha }}
-            ghcr.io/bsv-blockchain-demos/weather-chain-back:${{ needs.get_tag.outputs.deployment_tag }}
+            ghcr.io/bsv-blockchain-demos/weather-proof-back:${{ github.sha }}
+            ghcr.io/bsv-blockchain-demos/weather-proof-back:${{ needs.get_tag.outputs.deployment_tag }}
