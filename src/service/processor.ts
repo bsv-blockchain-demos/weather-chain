@@ -11,6 +11,7 @@ import {
 } from './setup';
 import { config } from '../config/env';
 import { NotificationService } from '../notification/interface';
+import { Transaction } from '@bsv/sdk';
 
 /**
  * Pre-flight funding check.
@@ -255,6 +256,8 @@ export function startProcessorLoop(notification: NotificationService): NodeJS.Ti
 
   processPendingRecords(notification).catch((error) => {
     console.error('Initial processing failed:', error);
+    const tx = Transaction.fromBEEF(error.tx);
+    console.log('Failed transaction:', tx.toHex());
   });
 
   return setInterval(async () => {

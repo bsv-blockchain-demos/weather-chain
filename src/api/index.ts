@@ -6,6 +6,7 @@ import proofRoutes from './routes/proof';
 import verifyRoutes from './routes/verify';
 import stationsRoutes from './routes/stations';
 import eventsRoutes from './routes/events';
+import { readyProbe } from './routes/ready';
 
 /**
  * Create and configure the Express application
@@ -21,9 +22,10 @@ export function createApp(): Application {
   app.use(express.json());
 
   // Health check endpoint
-  app.get('/api/health', (_req: Request, res: Response) => {
+  app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
+  app.get('/ready', readyProbe);
 
   // Mount routes
   app.use('/api/weather', weatherRoutes);
